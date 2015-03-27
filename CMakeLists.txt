@@ -14,4 +14,6 @@ add_executable(randomstream randomstream.cpp)
 target_compile_options(randomstream PRIVATE -std=c++11)
 target_compile_options(randomstream PRIVATE ${WARNINGS_CXX_FLAGS})
 
+install(TARGETS randomstream DESTINATION bin)
+
 # EOF #
