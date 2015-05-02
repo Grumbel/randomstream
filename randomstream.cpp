@@ -1,5 +1,5 @@
 // randomstream - stream of pseudo random numbers
-// Copyright (C) 2014 Ingo Ruhnke <grumbel@gmail.com>
+// Copyright (C) 2014,2015 Ingo Ruhnke <grumbel@gmail.com>
 //
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
@@ -16,9 +16,10 @@
 
 #include <array>
 #include <errno.h>
+#include <sstream>
 #include <stdio.h>
 #include <stdlib.h>
-#include <time.h>
+#include <sys/time.h>
 #include <unistd.h>
 
 constexpr size_t BUFFERSIZE = 1024 * 1024 / sizeof(uint64_t);
@@ -74,15 +75,30 @@ public:
 
 int main(int argc, char** argv)
 {
-  if (argc != 1)
+  if (argc > 2)
   {
-    puts("Usage: randomstream");
+    puts("Usage: randomstream [SEED]");
     return 1;
   }
   else
   {
+    uint64_t seed;
+    if (argc == 2)
+    {
+      std::istringstream str(argv[1]);
+      str >> seed;
+    }
+    else
+    {
+      // using gettimeofday() instead of time(NULL) to get sub-second
+      // seed changes
+      struct timeval tv;
+      gettimeofday(&tv, NULL);
+      seed = (tv.tv_sec ^ tv.tv_usec);
+    }
+
     // 530MiB/s on Intel Core Duo E6300 1.86Ghz
-    auto rnd = XORShift96(time(NULL));
+    auto rnd = XORShift96(seed);
 
     // 450MiB/s on Intel Core Duo E6300 1.86Ghz
     //auto rnd = XORShift64(time(NULL));
