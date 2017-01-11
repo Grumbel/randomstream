@@ -29,7 +29,7 @@
 #include <unistd.h>
 #include <vector>
 
-constexpr size_t BUFFERSIZE = 4 * 1024 * 1024 / sizeof(uint64_t);
+constexpr size_t BUFFERSIZE = 1024 * 1024 / sizeof(uint64_t);
 
 class RndGenerator
 {
@@ -248,7 +248,6 @@ Options parse_args(int argc, char** argv)
       else
       {
         opts.seed = std::stoll(arg());
-        std::cout << arg() << " -> " << opts.seed;
       }
       skip_arg();
     }
