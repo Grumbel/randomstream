@@ -28,11 +28,20 @@
 #include <sys/time.h>
 #include <unistd.h>
 #include <vector>
+#include <random>
+#include <thread>
+#include <mutex>
+#include <condition_variable>
 
 constexpr size_t BUFFERSIZE = 1024 * 1024 / sizeof(uint64_t);
 
 class RndGenerator
 {
+public:
+  using result_type = uint64_t;
+  inline result_type min() const { return 0; }
+  inline result_type max() const { return std::numeric_limits<result_type>::max(); }
+
 public:
   virtual ~RndGenerator() {}
   virtual uint64_t operator()() = 0;
@@ -118,8 +127,11 @@ void print_help(int argc, char** argv)
     "\n"
     "Options:\n"
     "  -h, --help              Display this help text\n"
+    "  --version               Display version number\n"
     "  -a, --algorithm ALG     Generate random numbers with ALG (default: xorshift96)\n"
-    "  -s, --seed SEED         Use SEED as uint64 seed value (default: time)\n"
+    "  -A, --ascii             Limit output to printable ASCII characters\n"
+    "  -s, --seed SEED         Use SEED as uint64 seed value, \n"
+    "                          'time' for time of day seed (default: 0)\n"
     "\n"
     "Algorithms:\n"
     "  xorshift96   XORShift96 Algorithm\n"
@@ -127,6 +139,11 @@ void print_help(int argc, char** argv)
     "  zero         Output 0s\n"
     "  const        Output the seed value repeatedly\n";
   std::cout << std::flush;
+}
+
+void print_version(int argc, char** argv)
+{
+  std::cout << argv[0] << " v0.1.0" << std::endl;
 }
 
 enum class AlgorithmType {
@@ -199,13 +216,15 @@ class Options
 public:
   Options() :
     algorithm(AlgorithmType::XORSHIFT96),
-    seed(time_seed()),
-    count(0)
+    seed(0),
+    count(0),
+    ascii(false)
   {}
 
   AlgorithmType algorithm;
   uint64_t seed;
   uint64_t count;
+  bool ascii;
 };
 
 Options parse_args(int argc, char** argv)
@@ -232,11 +251,21 @@ Options parse_args(int argc, char** argv)
       print_help(argc, argv);
       exit(EXIT_SUCCESS);
     }
+    else if (strcmp(opt(), "--version") == 0)
+    {
+      print_version(argc, argv);
+      exit(EXIT_SUCCESS);
+    }
     else if (strcmp(opt(), "--algorithm") == 0 ||
         strcmp(opt(), "-a") == 0)
     {
       opts.algorithm = string_to_algorithm(arg());
       skip_arg();
+    }
+    else if (strcmp(opt(), "--ascii") == 0 ||
+             strcmp(opt(), "-A") == 0)
+    {
+      opts.ascii = true;
     }
     else if (strcmp(opt(), "--seed") == 0 ||
              strcmp(opt(), "-s") == 0)
@@ -267,17 +296,87 @@ Options parse_args(int argc, char** argv)
   return opts;
 }
 
+template<typename T>
+class PseudoRng
+{
+public:
+  using result_type = T;
+  inline result_type min() const { return 0; }
+  inline result_type max() const { return std::numeric_limits<result_type>::max(); }
+
+public:
+  inline PseudoRng(result_type value) :
+    m_value(value)
+  {}
+
+  inline result_type operator()() { return m_value; }
+
+private:
+  result_type m_value;
+};
+
+inline uint64_t make_ascii(RndGenerator& rng)
+{
+  static std::uniform_int_distribution<uint64_t> ascii_distribution(32, 126);
+  uint64_t rnd = rng();
+  PseudoRng<uint64_t> prng1(rnd >> 0);
+  PseudoRng<uint64_t> prng2(rnd >> 8);
+  PseudoRng<uint64_t> prng3(rnd >> 16);
+  PseudoRng<uint64_t> prng4(rnd >> 24);
+  PseudoRng<uint64_t> prng5(rnd >> 32);
+  PseudoRng<uint64_t> prng6(rnd >> 40);
+  PseudoRng<uint64_t> prng7(rnd >> 48);
+  PseudoRng<uint64_t> prng8(rnd >> 56);
+  return ((ascii_distribution(prng1) <<  0) |
+          (ascii_distribution(prng2) <<  8) |
+          (ascii_distribution(prng3) << 16) |
+          (ascii_distribution(prng4) << 24) |
+          (ascii_distribution(prng5) << 32) |
+          (ascii_distribution(prng6) << 40) |
+          (ascii_distribution(prng7) << 48) |
+          (ascii_distribution(prng8) << 56));
+}
+
+inline void rnd_ascii_fill_buffer(RndGenerator& rng, uint8_t* buffer, size_t len)
+{
+  size_t i = 0;
+  while(true)
+  {
+    uint64_t rnd = rng();
+    for(int j = 0; j < 8; ++j)
+    {
+      buffer[i] = static_cast<uint8_t>(rnd >> (8 * j)) & 0x7f;
+      if (32 <= buffer[i] && buffer[i] < 127)
+      {
+        i += 1;
+        if (!(i < len))
+        {
+          return;
+        }
+      }
+    }
+  }
+}
+
+inline void rnd_fill_buffer(RndGenerator& rng, uint64_t* buffer, size_t len)
+{
+  for(size_t i = 0; i < len; ++i)
+  {
+    buffer[i] = rng();
+  }
+}
+
 int main(int argc, char** argv)
 {
   Options opts = parse_args(argc, argv);
 
-  auto rnd = create_rnd(opts.algorithm, opts.seed);
-
-  std::array<uint64_t, BUFFERSIZE> buffer;
-
   // FIXME: this is a bit of a mess
   if (opts.count != 0)
   {
+    auto rnd = create_rnd(opts.algorithm, opts.seed);
+
+    std::vector<uint64_t> buffer(BUFFERSIZE);
+
     for(auto&& v : buffer)
     {
       v = (*rnd)();
@@ -304,12 +403,23 @@ int main(int argc, char** argv)
   }
   else
   {
-    if (rnd->is_const())
+    auto t_rnd = create_rnd(opts.algorithm, opts.seed);
+    if (t_rnd->is_const())
     {
+      auto rnd = create_rnd(opts.algorithm, opts.seed);
+      std::vector<uint64_t> buffer(BUFFERSIZE);
+
       // fill it with initial values
       for(auto&& v : buffer)
       {
-        v = (*rnd)();
+        if (opts.ascii)
+        {
+          v = make_ascii(*rnd);
+        }
+        else
+        {
+          v = (*rnd)();
+        }
       }
 
       bool quit = false;
@@ -324,19 +434,85 @@ int main(int argc, char** argv)
     }
     else
     {
-      bool quit = false;
-      while(!quit)
-      {
-        for(auto&& v : buffer)
-        {
-          v = (*rnd)();
-        }
+      auto num_threads = std::thread::hardware_concurrency();
+      if (num_threads == 0)
+        num_threads = 1;
 
-        if (write(STDOUT_FILENO, buffer.data(), buffer.size() * sizeof(uint64_t)) < 0)
-        {
-          perror("<stdout>");
-          quit = true;
-        }
+      bool quit = false;
+      std::vector<std::thread> threads;
+      for(size_t t = 0; t < num_threads; ++t)
+      {
+        threads.emplace_back(
+          [&]{
+            std::vector<uint64_t> buffer1(BUFFERSIZE);
+            std::vector<uint64_t> buffer2(BUFFERSIZE);
+
+            std::vector<uint64_t>* write_buffer = &buffer1;
+            std::vector<uint64_t>* read_buffer = &buffer2;
+
+            auto rnd = create_rnd(opts.algorithm, opts.seed + t);
+
+            std::mutex read_buffer_mutex;
+            std::condition_variable read_buffer_ready_cv;
+            bool read_buffer_ready = false;
+
+            std::thread write_thread(
+              [&]
+              {
+                while(!quit)
+                {
+                  { // wait for generator thread to be done
+                    std::unique_lock<std::mutex> lk(read_buffer_mutex);
+                    read_buffer_ready_cv.wait(lk, [&read_buffer_ready]{ return read_buffer_ready; });
+                  }
+
+                  if (write(STDOUT_FILENO, read_buffer->data(), read_buffer->size() * sizeof(uint64_t)) < 0)
+                  {
+                    perror("<stdout>");
+                    quit = true;
+                  }
+
+                  {
+                    std::unique_lock<std::mutex> lk(read_buffer_mutex);
+                    read_buffer_ready = false;
+                  }
+                  read_buffer_ready_cv.notify_one();
+                }
+              });
+
+            while(!quit)
+            {
+              if (opts.ascii)
+              {
+                rnd_ascii_fill_buffer(*rnd,
+                                      reinterpret_cast<uint8_t*>(write_buffer->data()),
+                                      write_buffer->size() * sizeof(uint64_t));
+              }
+              else
+              {
+                rnd_fill_buffer(*rnd, write_buffer->data(), write_buffer->size());
+              }
+
+              { // wait for write thread to be done
+                std::unique_lock<std::mutex> lk(read_buffer_mutex);
+                read_buffer_ready_cv.wait(lk, [&read_buffer_ready]{ return !read_buffer_ready; });
+              }
+
+              {
+                std::unique_lock<std::mutex> lk(read_buffer_mutex);
+                std::swap(read_buffer, write_buffer);
+                read_buffer_ready = true;
+              }
+              read_buffer_ready_cv.notify_one();
+            }
+
+            write_thread.join();
+          });
+      }
+
+      for(auto&& t : threads)
+      {
+        t.join();
       }
     }
   }
