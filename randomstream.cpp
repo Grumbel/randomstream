@@ -235,9 +235,10 @@ Options parse_args(int argc, char** argv)
   {
     auto opt = [&]{ return argv[i]; };
     auto arg = [&]{
-      if (i + 1 > argc)
+      if (i + 1 >= argc)
       {
         std::cerr << "error: " << opt() << " requires an argument" << std::endl;
+        exit(EXIT_FAILURE);
       }
       return argv[i + 1];
     };
