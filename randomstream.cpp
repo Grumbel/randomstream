@@ -33,7 +33,7 @@
 #include <mutex>
 #include <condition_variable>
 
-constexpr size_t BUFFERSIZE = 1024 * 1024 / sizeof(uint64_t);
+constexpr size_t BUFFERSIZE = 4096;
 
 class RndGenerator
 {
