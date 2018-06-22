@@ -79,12 +79,15 @@ build:flatpak:
       - build-flatpak-repo
 
 pages:
+  stage: deploy
   dependencies:
     - build:flatpak
-  stage: deploy
   script:
     - mkdir public.tmp/
     - mv -v build-flatpak-repo public.tmp/flatpak
     - mv -vi public.tmp public
+  artifacts:
+    paths:
+    - public
 
 # EOF #
