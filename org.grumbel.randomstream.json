@@ -1,0 +1,20 @@
+{
+    "app-id": "org.grumbel.randomstream",
+    "runtime": "org.freedesktop.Platform",
+    "runtime-version": "1.6",
+    "sdk": "org.freedesktop.Sdk",
+    "command": "randomstream",
+    "modules": [
+       {
+            "name": "randomstream",
+            "buildsystem": "cmake",
+            "sources": [
+                {
+                    "type": "git",
+                    "url": "https://gitlab.com/grumbel/randomstream.git",
+                    "branch": "master"
+                }
+            ]
+        }
+    ]
+}
