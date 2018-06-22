@@ -208,7 +208,7 @@ uint64_t time_seed()
   // seed changes
   struct timeval tv;
   gettimeofday(&tv, NULL);
-  return (tv.tv_sec ^ tv.tv_usec);
+  return (static_cast<unsigned long>(tv.tv_sec) ^ static_cast<unsigned long>(tv.tv_usec));
 }
 
 class Options
@@ -277,14 +277,14 @@ Options parse_args(int argc, char** argv)
       }
       else
       {
-        opts.seed = std::stoll(arg());
+        opts.seed = std::stoull(arg());
       }
       skip_arg();
     }
     else if (strcmp(opt(), "--count") == 0 ||
              strcmp(opt(), "-c") == 0)
     {
-      opts.count = std::stoll(arg());
+      opts.count = std::stoull(arg());
       skip_arg();
     }
     else
