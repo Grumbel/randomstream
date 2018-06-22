@@ -29,6 +29,7 @@ before_script:
     cmake
     build-essential
     libc++-dev
+    software-properties-common
 
 .build_randomstream_template: &build_randomstream
   stage: build
@@ -61,5 +62,18 @@ build:clang:debug:
   variables:
     CXX: clang++-6.0
     BUILD_TYPE: Debug
+
+build:flatpak:
+  stage: build
+  script:
+    - add-apt-repository -y ppa:alexlarsson/flatpak
+    - apt-get -qq update
+    - apt-get -qq -y install flatpak flatpak-builder
+    - flatpak install flathub org.freedesktop.Platform org.freedesktop.Sdk
+    - flatpak-builder --repo=build-flatpak-repo/ build-flatpak/ org.grumbel.randomstream.json randomstream
+    - flatpak build-bundle build-flatpak-repo/ randomstream.flatpak org.grumbel.randomstream
+  artifacts:
+    paths:
+      - randomstream.flatpak
 
 # EOF #
