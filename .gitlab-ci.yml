@@ -69,6 +69,7 @@ build:flatpak:
     - add-apt-repository -y ppa:alexlarsson/flatpak
     - apt-get -qq update
     - apt-get -qq -y install flatpak flatpak-builder
+    - flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
     - flatpak install flathub org.freedesktop.Platform org.freedesktop.Sdk
     - flatpak-builder --repo=build-flatpak-repo/ build-flatpak/ org.grumbel.randomstream.json randomstream
     - flatpak build-bundle build-flatpak-repo/ randomstream.flatpak org.grumbel.randomstream
