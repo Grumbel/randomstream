@@ -77,4 +77,13 @@ build:flatpak:
     paths:
       - randomstream.flatpak
 
+pages:
+  dependencies:
+    - build:flatpak
+  stage: deploy
+  script:
+    - mkdir public.tmp/
+    - mv -v build-flatpak-repo public.tmp/flatpak
+    - mv -vi public.tmp public
+
 # EOF #
