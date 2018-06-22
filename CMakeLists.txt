@@ -3,13 +3,18 @@ project(randomstream VERSION 0.0.0)
 
 find_package(Threads)
 
-set(WARNINGS 0 CACHE BOOL "Switch on extra warnings")
+option(WARNINGS "Switch on extra warnings" OFF)
+option(WERROR "Turn warnings into errors" OFF)
 
 if(WARNINGS)
   set(WARNINGS_CXX_FLAGS
     -pedantic -Wall -Wextra -Wno-c++0x-compat -Wnon-virtual-dtor -Weffc++
     -Wconversion -Werror -Wshadow -Wcast-qual -Winit-self -Wno-unused-parameter)
   # -Winline -Wfloat-equal -Wunreachable-code
+endif()
+
+if(WERROR)
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Werror")
 endif()
 
 add_executable(randomstream randomstream.cpp)
